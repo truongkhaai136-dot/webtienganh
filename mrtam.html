@@ -183,14 +183,12 @@ class TranscriptApp {
         div.dataset.time = time;
         div.id = id;
         div.innerHTML = fallbackText;
-        // **NEW**: Make the line focusable
         div.setAttribute('tabindex', '0');
 
         div.onclick = () => {
             if (this.player?.seekTo) {
                 this.player.seekTo(time, true);
             }
-            // **NEW**: Set focus on the clicked line
             div.focus();
         };
         
@@ -278,6 +276,7 @@ class TranscriptApp {
             let content = line.innerHTML
                 .replace(/<button[^>]*>.*?<\/button>/g, '')  
                 .replace(/<div class="result">.*?<\/div>/g, '')  
+                .replace(/<div class="playback-container">.*?<\/div>/g, '') // Thêm dòng này
                 .replace(/<br\s*\/?>/gi, '\n')
                 .replace(/\[\d+:\d+\]/g, '')
                 .replace(/\[VI\]/g, '')
@@ -326,33 +325,79 @@ class TranscriptApp {
     }
 
     startSpeechRecognition(div, expectedText) {
-        if (!('webkitSpeechRecognition' in window)) {
-            alert('Speech recognition not supported in this browser');
-            return;
-        }
-        const recognition = new webkitSpeechRecognition();
-        recognition.lang = 'en-US';
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-        
+        // Xóa kết quả và nút nghe lại cũ
         const existingResult = div.querySelector('.result');
         if (existingResult) existingResult.remove();
-        
-        recognition.start();
+        const existingPlayback = div.querySelector('.playback-container');
+        if (existingPlayback) existingPlayback.remove();
 
-        recognition.onresult = (event) => {
-            const spokenText = event.results[0][0].transcript;
-            const cleanExpectedText = expectedText.replace(/\[.*?\]/g, '').trim();
-            const score = this.similarity(spokenText.toLowerCase(), cleanExpectedText.toLowerCase());
-            const resultEl = document.createElement('div');
-            resultEl.className = 'result';
-            resultEl.textContent = `You said: "${spokenText}" → Similarity: ${Math.round(score * 100)}%`;
-            div.appendChild(resultEl);
-        };
+        if (!('webkitSpeechRecognition' in window) || !navigator.mediaDevices) {
+            alert('Trình duyệt của bạn không hỗ trợ tính năng này.');
+            return;
+        }
 
-        recognition.onerror = (event) => {
-            alert('Error occurred in recognition: ' + event.error);
-        };
+        // 1. Xin quyền truy cập micro
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                // ---- Bắt đầu ghi âm ----
+                const mediaRecorder = new MediaRecorder(stream);
+                const audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                // Khi ghi âm dừng, tạo nút nghe lại
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    const playbackContainer = document.createElement('div');
+                    playbackContainer.className = 'playback-container';
+                    
+                    const listenButton = document.createElement('button');
+                    listenButton.textContent = '▶️ Listen Again';
+                    listenButton.style.marginTop = '5px';
+                    listenButton.onclick = () => new Audio(audioUrl).play();
+                    
+                    playbackContainer.appendChild(listenButton);
+                    div.appendChild(playbackContainer);
+                };
+                
+                mediaRecorder.start();
+
+                // ---- Bắt đầu nhận dạng giọng nói ----
+                const recognition = new webkitSpeechRecognition();
+                recognition.lang = 'en-US';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+                
+                recognition.onend = () => {
+                    mediaRecorder.stop();
+                    stream.getTracks().forEach(track => track.stop()); // Tắt micro
+                };
+
+                recognition.onresult = (event) => {
+                    const spokenText = event.results[0][0].transcript;
+                    const cleanExpectedText = expectedText.replace(/\[.*?\]/g, '').trim();
+                    const score = this.similarity(spokenText.toLowerCase(), cleanExpectedText.toLowerCase());
+                    const resultEl = document.createElement('div');
+                    resultEl.className = 'result';
+                    resultEl.innerHTML = `You said: "<em>${spokenText}</em>" → Similarity: <b>${Math.round(score * 100)}%</b>`;
+                    div.appendChild(resultEl);
+                };
+
+                recognition.onerror = (event) => {
+                    alert('Error occurred in recognition: ' + event.error);
+                    mediaRecorder.stop();
+                };
+
+                recognition.start();
+            })
+            .catch(err => {
+                alert('Could not access the microphone. Please grant permission.');
+                console.error("Error accessing microphone:", err);
+            });
     }
 
     similarity(s1, s2) {
@@ -459,36 +504,29 @@ function execCmd(cmd, value = null) {
     }
 }
 
-// **NEW**: Event listener for Spacebar to replay a selected line
 document.addEventListener('keydown', (event) => {
-    // Check if the pressed key is Spacebar (and not in an input field)
     if (event.code !== 'Space' || event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
         return;
     }
 
     const activeElement = document.activeElement;
 
-    // Check if the focused element is a transcript line
     if (activeElement && activeElement.classList.contains('line')) {
-        // Prevent the default spacebar action (e.g., scrolling the page)
         event.preventDefault();
 
         const time = parseFloat(activeElement.dataset.time);
         if (isNaN(time)) return;
 
-        // Find which pane the active line belongs to
         const parentPane = activeElement.closest('.pane');
         if (!parentPane) return;
 
         const targetApp = (parentPane.id === 'pane1') ? app1 : app2;
 
-        // If we found the correct app and player, seek to the time and play
         if (targetApp && targetApp.player && typeof targetApp.player.seekTo === 'function') {
             targetApp.player.seekTo(time, true);
         }
     }
 });
-
 </script>
 </body>
 </html>
