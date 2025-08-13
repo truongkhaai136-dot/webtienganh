@@ -351,7 +351,7 @@ document.addEventListener('dblclick', e => {
 function saveScripts() {
     const videoId = document.getElementById('videoIdInput').value.trim();
     const lines = document.querySelectorAll('.line');
-    const deChunks = [];
+    const enChunks = []; // Sửa: đổi deChunks thành enChunks
     const viChunks = [];
 
     for (const line of lines) {
@@ -359,26 +359,22 @@ function saveScripts() {
         const minutes = Math.floor(time / 60);
         const seconds = (time % 60).toString().padStart(2, '0');
 
-        // Lấy nội dung "sạch" bằng cách xóa các thẻ không cần thiết
         let content = line.innerHTML
-            .replace(/<button[^>]*>.*?<\/button>/g, '')  // Bỏ nút 🎤 và nút Nghe lại
-            .replace(/<div class="result">.*?<\/div>/g, '')  // Bỏ kết quả phát âm
-            .replace(/<div class="playback-container">.*?<\/div>/g, '') // Bỏ container nút nghe lại
-            .replace(/<br\s*\/?>/gi, '\n')  // Chuyển <br> thành xuống dòng
-            .replace(/<[^>]+>/g, '')       // Xoá các thẻ HTML khác
-            .replace(/\n{2,}/g, '\n')       // Xoá dòng trắng thừa
+            .replace(/<button[^>]*>.*?<\/button>/g, '')
+            .replace(/<div class="result">.*?<\/div>/g, '')
+            .replace(/<div class="playback-container">.*?<\/div>/g, '')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]+>/g, '')
+            .replace(/\n{2,}/g, '\n')
             .trim();
 
-        // Ghép thời gian và nội dung thành một khối
         let block;
 
-        if (line.classList.contains('user')) { // Dòng tiếng Đức
-            // Xóa tiền tố [time] nếu có
+        if (line.classList.contains('user')) { // Đây là dòng tiếng Anh
             const cleanContent = content.replace(/^\[\d+:\d{2}\]\s*/, '');
             block = `${minutes}:${seconds}\n${cleanContent}`;
-            deChunks.push(block);
-        } else if (line.classList.contains('machine')) { // Dòng tiếng Việt
-            // Xóa tiền tố [VI] nếu có
+            enChunks.push(block); // Sửa: thêm vào enChunks
+        } else if (line.classList.contains('machine')) { // Đây là dòng tiếng Việt
             const cleanContent = content.replace(/^\[VI\]\s*/, '');
             block = `${minutes}:${seconds}\n${cleanContent}`;
             viChunks.push(block);
@@ -387,7 +383,7 @@ function saveScripts() {
 
     const blob = new Blob([JSON.stringify({
         videoId,
-        enText: deChunks.join('\n\n'),
+        enText: enChunks.join('\n\n'), // Sửa: sử dụng enChunks
         viText: viChunks.join('\n\n')
     }, null, 2)], { type: 'application/json' });
 
