@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Luyện Nói Tiếng Anh Pro - Nâng Cấp</title>
+    <title>Luyện Nói Tiếng Đức Pro - Nâng Cấp</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -284,7 +284,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             // --- BẮT ĐẦU PHẦN TẢI HỘI THOẠI TỪ GITHUB ---
             const owner = 'truongkhaai136-dot';
-            const repo = 'webtiengduc';
+            const repo = 'webtienganh';
             const baseFolderPath = 'hoi-thoai';
             const conversationContainer = document.getElementById('danh-sach-hoi-thoai');
             const dialogueInput = document.getElementById('dialogue-input'); 
@@ -488,32 +488,49 @@
                 return result;
             }
 
-            function createDiffHtml(originalText, spokenText) {
-                const clean = (text) => text.toLowerCase().replace(/[^\w\s'äöüß]/g, "").split(/\s+/).filter(Boolean);
-                const originalWords = clean(originalText);
-                const spokenWords = clean(spokenText);
-                const commonSubsequence = new Set(lcs(originalWords, spokenWords));
-                let correctWords = 0;
-                const spokenHtml = spokenWords.map(word => {
-                    if (commonSubsequence.has(word)) {
-                        correctWords++;
-                        return `<span class="diff-correct">${word}</span>`;
-                    } else {
-                        return `<span class="diff-incorrect">${word}</span>`;
-                    }
-                }).join(' ');
-                const originalHtml = originalWords.map(word => {
-                    if (commonSubsequence.has(word)) {
-                        return `<span class="diff-correct">${word}</span>`;
-                    } else {
-                        return `<span class="diff-missing">${word}</span>`;
-                    }
-                }).join(' ');
-                const accuracy = originalWords.length > 0 ? Math.round((correctWords / originalWords.length) * 100) : 0;
-                return {
-                    html: `<div><strong>Câu thoại gốc:</strong> ${originalHtml}</div><div><strong>Bạn đã nói:</strong> ${spokenHtml}</div>`,
-                    accuracy: accuracy
-                };
+            // ĐOẠN MÃ MỚI - DÀNH CHO TIẾNG TRUNG VÀ CÁC NGÔN NGỮ KHÁC
+function createDiffHtml(originalText, spokenText) {
+    // THAY ĐỔI QUAN TRỌNG Ở ĐÂY
+    // Hàm clean mới này sẽ:
+    // 1. Lọc bỏ các ký tự không phải là chữ hoặc số (bao gồm cả dấu câu tiếng Trung như 。？！，)
+    // 2. Tách câu thành một danh sách các KÝ TỰ thay vì TỪ.
+    const clean = (text) => text
+        .replace(/[^\p{L}\p{N}]/gu, "") // Lọc dấu câu cho mọi ngôn ngữ (Unicode)
+        .split(''); // Tách thành mảng các ký tự
+
+    const originalChars = clean(originalText);
+    const spokenChars = clean(spokenText.replace(/\s+/g, '')); // Xóa khoảng trắng trong giọng nói nhận dạng
+    
+    const commonSubsequence = new Set(lcs(originalChars, spokenChars));
+    
+    let correctChars = 0;
+    const spokenHtml = spokenChars.map(char => {
+        // Tạm thời chỉ cần ký tự đầu tiên trong chuỗi con chung để tránh lỗi so sánh
+        const firstCommonChar = [...commonSubsequence][0];
+        if (commonSubsequence.has(char)) {
+            correctChars++;
+            // Xóa ký tự đã khớp để xử lý các ký tự trùng lặp
+            commonSubsequence.delete(char);
+            return `<span class="diff-correct">${char}</span>`;
+        } else {
+            return `<span class="diff-incorrect">${char}</span>`;
+        }
+    }).join(''); // Nối lại không có khoảng trắng
+
+    const originalHtml = originalChars.map(char => {
+        if (new Set(lcs(originalChars, spokenChars)).has(char)) { // Cần tính lại để so sánh đúng
+            return `<span class="diff-correct">${char}</span>`;
+        } else {
+            return `<span class="diff-missing">${char}</span>`;
+        }
+    }).join(''); // Nối lại không có khoảng trắng
+    
+    const accuracy = originalChars.length > 0 ? Math.round((correctChars / originalChars.length) * 100) : 0;
+    
+    return {
+        html: `<div><strong>Câu thoại gốc:</strong> ${originalHtml}</div><div><strong>Bạn đã nói:</strong> ${spokenHtml}</div>`,
+        accuracy: accuracy
+    };
             }
 
             function updateDialogueDisplay() {
