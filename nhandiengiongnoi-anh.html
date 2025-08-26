@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8"/>
-    <title>Combined English Q&A Recorder & Text Reader</title>
+    <title>Combined German Q&A Recorder & Text Reader</title>
     <style>
         /* --- General Layout --- */
         html, body {
@@ -145,7 +145,7 @@
 
 <div id="main-container">
     <div id="left-panel" class="panel">
-        <h1>Questions and Answers – Voice Recording (English)</h1>
+        <h1>Questions and Answers – Voice Recording (German)</h1>
         <h2>📂 Import questions from file:</h2>
         <input accept=".docx,.txt" id="file-input" type="file"/>
         <h2>📥 Import Q&A from ZIP:</h2>
@@ -154,11 +154,12 @@
             </div>
         <button onclick="addNewQuestion()">➕ Add New Question</button>
         <button onclick="exportData()">📤 Export Data to ZIP</button>
+        <button id="toggle-model-answers-btn" onclick="toggleModelAnswers()">Ẩn câu trả lời mẫu</button>
         <button onclick="createNewSession()">➕ Create New Session</button>
     </div>
 
     <div id="right-panel" class="panel">
-        <h1>Paste English text here to listen with Jenny's voice</h1>
+        <h1>Paste German text here to listen with Amala's voice</h1>
         <div id="text-area" contenteditable="true">
             Paste text here...
         </div>
@@ -182,7 +183,7 @@
     // =================================================================
     // =========== SHARED & GLOBAL VARIABLES AND FUNCTIONS ===========
     // =================================================================
-    let englishTTSVoice = null;
+    let germanTTSVoice = null;
     let recognition;
     let mediaRecorder;
     let audioChunks = [];
@@ -195,18 +196,21 @@
     let currentPlaybackRate = 1.0;
     let isReading = false;
     let currentUtterance = null;
-    // Đã xóa biến 'originalTextAreaContent' không cần thiết
 
     const highlightColors = ["#ffff99", "#99ccff", "#ffcc99", "#ffcccb", "#ffb6c1", "#98fb98", "#dda0dd", "#c19a6b"];
     let currentColorIndex = 0;
+    
+    // Biến mới để theo dõi trạng thái hiển thị của câu trả lời mẫu
+    let areModelAnswersVisible = true;
+
 
     function initializeVoices() {
         const voices = speechSynthesis.getVoices();
-        englishTTSVoice = voices.find(v => v.name === "Microsoft Jenny Online (Natural) - English (United States)") || voices.find(v => v.name.includes("Jenny") && v.lang === "en-US");
-        if (englishTTSVoice) {
-            console.log("Successfully found English voice:", englishTTSVoice.name);
+        germanTTSVoice = voices.find(v => v.name === "Microsoft Jenny Online (Natural) - English (United States)") || voices.find(v => v.name.includes("Jenny") && v.lang === "en-US");
+        if (germanTTSVoice) {
+            console.log("Successfully found German voice:", germanTTSVoice.name);
         } else {
-            console.warn("Jenny voice not found. The browser's default English voice will be used.");
+            console.warn("Amala voice not found. The browser's default German voice will be used.");
         }
     }
 
@@ -290,8 +294,7 @@
         if (isReading) {
             speechSynthesis.cancel();
         }
-        removeHighlight(); // Gọi hàm removeHighlight đã được sửa lỗi
-        // Đã xóa dòng gán 'originalTextAreaContent'
+        removeHighlight();
         const cleanedText = text.replace(/[\u2500-\u25FF\u2B00-\u2BFF]/g, '')
                                 .replace(/Kiểm tra/g, '')
                                 .replace(/Gõ lại câu này/g, '')
@@ -303,8 +306,8 @@
             return;
         }
         currentUtterance = new SpeechSynthesisUtterance(cleanedText);
-        currentUtterance.lang = 'en-US';
-        if (englishTTSVoice) currentUtterance.voice = englishTTSVoice;
+        currentUtterance.lang = 'de-DE';
+        if (germanTTSVoice) currentUtterance.voice = germanTTSVoice;
         currentUtterance.rate = currentPlaybackRate;
         currentUtterance.onboundary = function(event) {
             if (event.name === 'word') {
@@ -319,7 +322,6 @@
             isReading = false;
             removeHighlight();
             currentUtterance = null;
-             // Đã xóa dòng reset 'originalTextAreaContent'
         };
         speechSynthesis.speak(currentUtterance);
     }
@@ -361,29 +363,74 @@
     function createNewSession() {
         window.open(window.location.pathname + `?id=${Date.now()}_${Math.floor(Math.random() * 100000)}`, '_blank');
     }
+    
+    // ==============================================================
+    // ============= HÀM MỚI ĐỂ ẨN/HIỆN CÂU TRẢ LỜI MẪU =============
+    // ==============================================================
+    function toggleModelAnswers() {
+        const modelAnswers = document.querySelectorAll('.model-answer');
+        const button = document.getElementById('toggle-model-answers-btn');
+        areModelAnswersVisible = !areModelAnswersVisible; // Chuyển đổi trạng thái
+        
+        modelAnswers.forEach(answer => {
+            answer.style.display = areModelAnswersVisible ? 'block' : 'none';
+        });
+
+        button.textContent = areModelAnswersVisible ? 'Ẩn câu trả lời mẫu' : 'Hiện câu trả lời mẫu';
+    }
+    
+    // ===================================================================
+    // ============= HÀM MỚI ĐỂ XỬ LÝ VIỆC IMPORT NỘI DUNG =============
+    // ===================================================================
+    function processImportedQuestionsAndAnswers(text) {
+        document.getElementById("questions-container").innerHTML = '';
+        questionCount = 0;
+        
+        const lines = text.split(/\r?\n/);
+        const qaPairs = [];
+        
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) return;
+
+            if (trimmedLine.startsWith('[A]')) {
+                // Nếu là câu trả lời, thêm vào câu hỏi cuối cùng
+                if (qaPairs.length > 0) {
+                    // Xóa token [A] và khoảng trắng đầu tiên
+                    qaPairs[qaPairs.length - 1].answer = trimmedLine.substring(3).trim();
+                }
+            } else {
+                // Nếu là câu hỏi mới, tạo một cặp mới
+                qaPairs.push({ question: trimmedLine, answer: '' });
+            }
+        });
+        
+        // Tạo các khối câu hỏi trên giao diện
+        qaPairs.forEach(pair => {
+            if (!pair.question) return;
+            addNewQuestion();
+            const newBlock = document.querySelector(`.question-block[data-index="${questionCount - 1}"]`);
+            newBlock.querySelector(".question-text").textContent = pair.question;
+            if (pair.answer) {
+                 newBlock.querySelector(".model-answer").value = pair.answer;
+            }
+        });
+    }
+
 
     document.getElementById("file-input").addEventListener("change", function (event) {
         const file = event.target.files[0];
         if (!file) return;
-        const processQuestions = (questions) => {
-            document.getElementById("questions-container").innerHTML = '';
-            questionCount = 0;
-            questions.forEach(qText => {
-                if (!qText.trim()) return;
-                addNewQuestion();
-                const newBlock = document.querySelector(`.question-block[data-index="${questionCount-1}"]`);
-                newBlock.querySelector(".question-text").textContent = qText.trim();
-            });
-        };
+
         if (file.name.endsWith(".txt")) {
             const reader = new FileReader();
-            reader.onload = () => processQuestions(reader.result.split(/\r?\n/).filter(Boolean));
+            reader.onload = () => processImportedQuestionsAndAnswers(reader.result);
             reader.readAsText(file);
         } else if (file.name.endsWith(".docx")) {
             const reader = new FileReader();
             reader.onload = (e) => {
                 mammoth.extractRawText({ arrayBuffer: e.target.result })
-                    .then(result => processQuestions(result.value.split("\n").filter(Boolean)));
+                    .then(result => processImportedQuestionsAndAnswers(result.value));
             };
             reader.readAsArrayBuffer(file);
         }
@@ -609,18 +656,14 @@
         return textContent;
     }
 
-    // ========== HÀM ĐÃ SỬA LỖI (BƯỚC 2) ==========
     function removeHighlight() {
         const textArea = document.getElementById('text-area');
-        // Luôn tìm tất cả các span highlight hiện có
         const highlightedSpans = textArea.querySelectorAll('.reading-highlight');
         
-        // Thay thế mỗi span bằng chính nội dung text của nó (gỡ bỏ tag span)
         highlightedSpans.forEach(span => {
             span.parentNode.replaceChild(document.createTextNode(span.textContent), span);
         });
 
-        // Gộp các nút văn bản liền kề lại để DOM sạch sẽ
         textArea.normalize();
     }
 
@@ -671,15 +714,11 @@
         }
     }
 
-    // --- Các EventListener cho nút đọc ---
-
-    // ========== HÀM ĐÃ SỬA LỖI (BƯỚC 1) ==========
     document.getElementById("text-area").addEventListener("mouseup", function () {
         setTimeout(() => {
             const selection = window.getSelection();
-            // Chỉ thực hiện khi người dùng bôi đen văn bản (selection không phải là một điểm)
             if (selection.isCollapsed) {
-                return; // Nếu là click chuột đơn thuần, không làm gì cả.
+                return;
             }
 
             let selectedText = selection.toString().trim();
@@ -773,10 +812,6 @@
         currentPlaybackRate = parseFloat(this.value);
         speedValue.textContent = `${currentPlaybackRate.toFixed(1)}x`;
     });
-
-    // =================================================================
-    // =========== KEYBOARD SHORTCUTS & POPUPS ARE REMOVED ===========
-    // =================================================================
 
     // =================================================================
     // =================== INITIALIZATION ==============================
