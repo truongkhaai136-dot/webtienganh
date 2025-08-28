@@ -316,9 +316,7 @@ class TranscriptApp {
                 const data = JSON.parse(e.target.result);
                 this.videoIdInput.value = data.videoId || '';
                 this.scriptEN.value = data.enText || '';
-                // Nếu file không có viText thì để trống, hoặc lấy enText thay thế
                 this.scriptVI.value = data.viText || '';
-                this.loadVideoAndTranscript(); // auto render transcript after loading file
             } catch (err) {
                 alert('Invalid JSON file.');
             }
